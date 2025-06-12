@@ -51,6 +51,8 @@ import { useQueryState } from 'nuqs';
 import { format } from 'date-fns';
 import { useAtom } from 'jotai';
 import { toast } from 'sonner';
+import { ContextHeader } from '@/components/mail/context-header';
+
 
 const formatFileSize = (size: number) => {
   const sizeInMB = (size / (1024 * 1024)).toFixed(2);
@@ -985,6 +987,7 @@ export function ThreadDisplay() {
                 type="auto"
               >
                 <div className="pb-4">
+
                   {(emailData.messages || []).map((message, index) => {
                     const isLastMessage = index === emailData.messages.length - 1;
                     const isReplyingToThisMessage = mode && activeReplyId === message.id;
@@ -1015,6 +1018,32 @@ export function ThreadDisplay() {
                       </div>
                     );
                   })}
+                  <ContextHeader email={emailData.latest?.sender?.email} />
+                  {(emailData.messages || []).map((message, index) => (
+                    <div
+                      key={message.id}
+                      className={cn(
+                        'transition-all duration-200',
+                        index > 0 && 'border-border border-t',
+                        mode && activeReplyId === message.id && '',
+                      )}
+                    >
+                      <MailDisplay
+                        emailData={message}
+                        isFullscreen={isFullscreen}
+                        isMuted={false}
+                        isLoading={false}
+                        index={index}
+                        totalEmails={emailData?.totalReplies}
+                        threadAttachments={index === 0 ? allThreadAttachments : undefined}
+                      />
+                      {mode && activeReplyId === message.id && (
+                        <div className="px-4 py-2" id={`reply-composer-${message.id}`}>
+                          <ReplyCompose messageId={message.id} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </ScrollArea>
               

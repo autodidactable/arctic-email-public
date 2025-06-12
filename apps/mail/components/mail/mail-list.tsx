@@ -49,6 +49,9 @@ import { Button } from '../ui/button';
 import { useQueryState } from 'nuqs';
 import { Categories } from './mail';
 import { useAtom } from 'jotai';
+import { useContextTags } from '@/hooks/use-context-tags.ts';
+import { MailContextTags } from '@/components/mail/mail-context-tags';
+
 
 const Thread = memo(
   function Thread({
@@ -67,6 +70,8 @@ const Thread = memo(
     const [, setActiveReplyId] = useQueryState('activeReplyId');
     const [focusedIndex, setFocusedIndex] = useAtom(focusedIndexAtom);
     const latestMessage = getThreadData?.latest;
+    const { tags } = useContextTags(latestMessage?.sender?.email);
+    console.log('✅ tags for', latestMessage?.sender?.email, tags);
     const idToUse = useMemo(() => latestMessage?.threadId ?? latestMessage?.id, [latestMessage]);
     const { data: settingsData } = useSettings();
     const queryClient = useQueryClient();
@@ -500,7 +505,12 @@ const Thread = memo(
                       >
                         {highlightText(latestMessage.subject, searchValue.highlight)}
                       </p>
+                      
                     )}
+                    {latestMessage?.sender?.email && (
+                    <MailContextTags tags={useContextTags(latestMessage.sender.email).tags} />
+                    )}
+
                     {/* <div className="hidden md:flex">
                       {getThreadData.labels ? <MailLabels labels={getThreadData.labels} /> : null}
                     </div> */}
