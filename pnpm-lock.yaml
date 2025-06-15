@@ -685,7 +685,6 @@ importers:
   packages/tsconfig: {}
 
 packages:
-
   '@11labs/client@0.1.4':
     resolution: {integrity: sha512-XxNl4GpNW9NYOD1P5apzZBpcNOP0Zu4goZu8Lud1iTIVkjv3fDp+hyurZoSTUdsik/TIeuxMgbd392M/EQgoKw==}
     deprecated: This package has moved to @elevenlabs/client
@@ -695,7 +694,6 @@ packages:
     deprecated: This package has moved to @elevenlabs/react
     peerDependencies:
       react: '>=16.8.0'
-
   '@ai-sdk/google@1.2.18':
     resolution: {integrity: sha512-8B70+i+uB12Ae6Sn6B9Oc6W0W/XorGgc88Nx0pyUrcxFOdytHBaAVhTPqYsO3LLClfjYN8pQ9GMxd5cpGEnUcA==}
     engines: {node: '>=18'}

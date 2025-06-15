@@ -64,6 +64,7 @@ const cleanNameDisplay = (name?: string) => {
   return name.replace(/["<>]/g, '');
 };
 
+<<<<<<< HEAD
 // HTML escaping function to prevent XSS attacks
 const escapeHtml = (text: string): string => {
   if (!text) return text;
@@ -71,6 +72,8 @@ const escapeHtml = (text: string): string => {
   div.textContent = text;
   return div.innerHTML;
 };
+=======
+>>>>>>> b3e6b7e1 (wip: local updates before merge from upstream)
 
 interface ThreadDisplayProps {
   threadParam?: any;
@@ -708,7 +711,35 @@ export function ThreadDisplay() {
       }, 100); // Short delay to ensure the component is rendered
     }
   }, [mode, activeReplyId]);
+  const [contextEmail, setContextEmail] = useState<string | null>(null);
 
+useEffect(() => {
+  const fetchCRMContext = async () => {
+    if (!emailData?.messages?.length) return;
+
+    const uniqueSenderEmails = Array.from(
+      new Set(emailData.messages.map((m) => m.sender?.email).filter(Boolean))
+    );
+
+    for (const email of uniqueSenderEmails) {
+      try {
+        const API_BASE = import.meta.env.VITE_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+        const res = await fetch(`${API_BASE}/api/context?email=${encodeURIComponent(email)}`);
+        const json = (await res.json()) as { contact: { id: string } | null };
+        if (json?.contact) {
+          setContextEmail(email);
+          return;
+        }
+      } catch (err) {
+        console.error(`Failed to fetch context for ${email}`, err);
+      }
+    }
+
+    setContextEmail(null); // fallback if no matches
+  };
+
+  fetchCRMContext();
+}, [emailData]);
   return (
     <div
       className={cn(
@@ -1019,6 +1050,7 @@ export function ThreadDisplay() {
                     );
                   })}
                   <ContextHeader email={emailData.latest?.sender?.email} />
+                {contextEmail && <ContextHeader email={contextEmail} />}
                   {(emailData.messages || []).map((message, index) => (
                     <div
                       key={message.id}
