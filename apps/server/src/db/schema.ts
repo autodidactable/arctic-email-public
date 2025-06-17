@@ -193,17 +193,26 @@ export const contacts = pgTable('contacts', {
 });
 
 export const deals = pgTable('deals', {
-  id: bigint('id', { mode: 'number' }),
+  id: text('id').primaryKey(), // ✅ keep this
   dealname: varchar('dealname', { length: 255 }),
   dealstage: varchar('dealstage', { length: 255 }),
   amount: numeric('amount'),
   closedate: timestamp('closedate'),
   engagements_last_meeting_booked: timestamp('engagements_last_meeting_booked'),
-  stacksync_record_id_rr1kp8: uuid('stacksync_record_id_rr1kp8').primaryKey(),
+  stacksync_record_id_rr1kp8: uuid('stacksync_record_id_rr1kp8'), // ❌ NOT a primary key
+});
+export const stages = pgTable('stages', {
+  id: text('id').primaryKey(),              // e.g., 'qualifiedtobuy'
+  label: text('label'),                     // e.g., 'Qualified to Buy'
+  object_type: text('object_type'),
+  pipeline_id: text('pipeline_id'),
+  archived: boolean('archived'),
+  displayorder: numeric('displayorder'),
+  metadata: jsonb('metadata'),
 });
 
 export const associations_contact_deal = pgTable('associations_contact_deal', {
   contact_id: bigint('contact_id', { mode: 'number' }),
-  deal_id: bigint('deal_id', { mode: 'number' }),
+  deal_id: text('deal_id'), // ✅ FIXED: now matches deals.id
   stacksync_record_id_hqf40t: uuid('stacksync_record_id_hqf40t').primaryKey(),
 });

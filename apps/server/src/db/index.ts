@@ -2,6 +2,7 @@ import { drizzle } from 'drizzle-orm/postgres-js';
 import * as schema from './schema';
 import postgres from 'postgres';
 
+
 export const createDb = (url: string) => {
   console.log('🐛 createDb called with:', url);
   const conn = postgres(url, {
@@ -16,3 +17,4 @@ export const createDb = (url: string) => {
 };
 
 export type DB = ReturnType<typeof createDb>;
+console.log('✅ db/index.ts loaded');

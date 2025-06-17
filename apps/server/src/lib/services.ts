@@ -10,16 +10,20 @@ export const resend = () =>
 export const redis = () => new Redis({ url: env.REDIS_URL, token: env.REDIS_TOKEN });
 
 export const twilio = (forceUseRealService = false) => {
-  //   if (env.NODE_ENV === 'development' && !forceUseRealService) {
-  //     return {
-  //       messages: {
-  //         send: async (to: string, body: string) =>
-  //           console.log(`[TWILIO:MOCK] Sending message to ${to}: ${body}`),
-  //       },
-  //     };
-  //   }
+  const isConfigured =
+    env.TWILIO_ACCOUNT_SID && env.TWILIO_AUTH_TOKEN && env.TWILIO_PHONE_NUMBER;
 
-  if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.TWILIO_PHONE_NUMBER) {
+  if (!isConfigured && !forceUseRealService) {
+    console.warn('⚠️ Twilio is not configured — using mock implementation.');
+    return {
+      messages: {
+        send: async (to: string, body: string) =>
+          console.log(`[MOCK TWILIO] To: ${to}, Body: ${body}`),
+      },
+    };
+  }
+
+  if (!isConfigured) {
     throw new Error('Twilio is not configured correctly');
   }
 
@@ -30,7 +34,9 @@ export const twilio = (forceUseRealService = false) => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          Authorization: `Basic ${btoa(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`)}`,
+          Authorization: `Basic ${btoa(
+            `${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`,
+          )}`,
         },
         body: new URLSearchParams({
           To: to,
