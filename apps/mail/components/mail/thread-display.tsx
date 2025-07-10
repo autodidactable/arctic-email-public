@@ -52,6 +52,38 @@ import { format } from 'date-fns';
 import { useAtom } from 'jotai';
 import { toast } from 'sonner';
 import { ContextHeader } from '@/components/mail/context-header';
+import { summarizeThread } from '@/lib/summarize-thread';
+import type { ContactContext, Deal, CrmContext, ContextData } from 'types/llm';
+import { useContextData } from '@/hooks/use-context-data';
+import {ControlledDropdown} from '@/components/ui/controlled-dropdown';
+import { StickyNote, ClipboardCopy, Loader2 } from 'lucide-react';
+import { Copy } from 'lucide-react';
+
+
+
+
+
+function getContactContext(thread: any): ContactContext {
+  return thread.messages.reduce((acc: ContactContext, message: any) => {
+    if (message.sender?.email) {
+      acc[message.sender.email] = {
+        name: message.sender.name || '',
+        title: message.sender.title || '',
+      };
+    }
+    return acc;
+  }, {});
+}
+
+function getCrmContext(thread: any): CrmContext {
+  return {
+    dealId: thread.dealId ?? undefined,
+    accountId: thread.accountId ?? undefined,
+    dealStage: thread.dealStage ?? undefined,
+  };
+}
+
+
 
 
 const formatFileSize = (size: number) => {
@@ -81,6 +113,7 @@ interface ThreadDisplayProps {
 }
 
 export function ThreadDemo({ messages, isMobile }: ThreadDisplayProps) {
+
   const isFullscreen = false;
   return (
     <div
@@ -115,6 +148,9 @@ export function ThreadDemo({ messages, isMobile }: ThreadDisplayProps) {
                     isMuted={false}
                     isLoading={false}
                     index={index}
+                    dealId={contextData?.deals?.[0]?.id}
+                    accountId={contextData?.deals?.[0]?.accountId}
+                    dealStage={contextData?.deals?.[0]?.stage}
                   />
                 </div>
               ))}
@@ -179,7 +215,39 @@ export function ThreadDisplay() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isStarred, setIsStarred] = useState(false);
   const [isImportant, setIsImportant] = useState(false);
+  const [summaryData, setSummaryData] = useState<{
+    summary: string;
+    followUps: any[];
+  } | null>(null);
+  
+  const [isSummaryModalOpen, setSummaryModalOpen] = useState(false);
+  const [isUpdatingOpportunity, setIsUpdatingOpportunity] = useState(false);
 
+  
+  const handleSummarize = async () => {
+    if (!emailData?.messages?.length || !id) return;
+  
+    const result = await summarizeThread({
+      threadId: id,
+      messages: emailData.messages.map((m) => ({
+        id: m.id,
+        sender: m.sender?.email ?? 'unknown',
+        recipients: (m.to || []).map((r) => r.email),
+        timestamp: m.receivedOn,
+        subject: m.subject ?? '',
+        body: m.decodedBody ?? '',
+      })),
+      contactContext: getContactContext(emailData),
+      crmContext: getCrmContext(emailData),
+    });
+  
+    setSummaryData(result);
+    setSummaryModalOpen(true);
+  };
+  
+  
+  
+  
   // Collect all attachments from all messages in the thread
   const allThreadAttachments = useMemo(() => {
     if (!emailData?.messages) return [];
@@ -657,6 +725,7 @@ export function ThreadDisplay() {
   };
 
   const handleToggleImportant = useCallback(async () => {
+    
     if (!emailData || !id) return;
     await toggleImportant({ ids: [id] });
     await refetchThread();
@@ -737,6 +806,11 @@ useEffect(() => {
 
   fetchCRMContext();
 }, [emailData]);
+
+const { data: contextData } = useContextData(contextEmail ?? undefined) as {
+  data: ContextData | undefined;
+};
+const [isSummarizing, setIsSummarizing] = useState(false);
   return (
     <div
       className={cn(
@@ -977,6 +1051,29 @@ useEffect(() => {
                       </DropdownMenuItem>
                     ) : (
                       <>
+                            <DropdownMenuItem
+                                  disabled={isSummarizing}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  e.preventDefault();
+                                  handleSummarize();
+                                }}
+                                className="flex items-center gap-2"
+                                >
+                                  {isSummarizing ? (
+                                    <>
+                                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                      <span className="text-muted-foreground">Summarizing...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Sparkles className="h-4 w-4 fill-iconLight dark:fill-iconDark" />
+                                      <span>Summarize</span>
+                                    </>
+                                  )}
+                              </DropdownMenuItem>
+
+
                         <DropdownMenuItem
                           onClick={(e) => {
                             e.stopPropagation();
@@ -1010,73 +1107,41 @@ useEffect(() => {
               </div>
             </div>
             <div className={cn('flex min-h-0 flex-1 flex-col', isMobile && 'h-full')}>
-              <ScrollArea
-                className={cn('flex-1', isMobile ? 'h-[calc(100%-1px)]' : 'h-full')}
-                type="auto"
-              >
-                <div className="pb-4">
+            <ScrollArea>
+  <div className="pb-4">
 
-                {contextEmail && <ContextHeader email={contextEmail} />}
+    {/* GOOD: keep one context header */}
+    {contextEmail && <ContextHeader email={contextEmail} />}
 
-                  {(emailData.messages || []).map((message, index) => {
-                    const isLastMessage = index === emailData.messages.length - 1;
-                    const isReplyingToThisMessage = mode && activeReplyId === message.id;
-                    
-                    return (
-                      <div
-                        key={message.id}
-                        className={cn(
-                          'transition-all duration-200',
-                          index > 0 && 'border-border border-t',
-                        )}
-                      >
-                        <MailDisplay
-                          emailData={message}
-                          isFullscreen={isFullscreen}
-                          isMuted={false}
-                          isLoading={false}
-                          index={index}
-                          totalEmails={emailData?.totalReplies}
-                          threadAttachments={index === 0 ? allThreadAttachments : undefined}
-                        />
-                        {/* Inline Reply Compose for non-last messages */}
-                        {isReplyingToThisMessage && !isLastMessage && (
-                          <div className="px-4 py-2" id={`reply-composer-${message.id}`}>
-                            <ReplyCompose messageId={message.id} />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  <ContextHeader email={emailData.latest?.sender?.email} />
-                {contextEmail && <ContextHeader email={contextEmail} />}
-                  {(emailData.messages || []).map((message, index) => (
-                    <div
-                      key={message.id}
-                      className={cn(
-                        'transition-all duration-200',
-                        index > 0 && 'border-border border-t',
-                        mode && activeReplyId === message.id && '',
-                      )}
-                    >
-                      <MailDisplay
-                        emailData={message}
-                        isFullscreen={isFullscreen}
-                        isMuted={false}
-                        isLoading={false}
-                        index={index}
-                        totalEmails={emailData?.totalReplies}
-                        threadAttachments={index === 0 ? allThreadAttachments : undefined}
-                      />
-                      {mode && activeReplyId === message.id && (
-                        <div className="px-4 py-2" id={`reply-composer-${message.id}`}>
-                          <ReplyCompose messageId={message.id} />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
+    {/* GOOD: one loop over messages */}
+    {(emailData.messages || []).map((message, index) => {
+      const isLastMessage = index === emailData.messages.length - 1;
+      const isReplyingToThisMessage = mode && activeReplyId === message.id;
+
+      return (
+        <div key={message.id} className={cn('transition-all duration-200', index > 0 && 'border-border border-t')}>
+          <MailDisplay
+            emailData={message}
+            isFullscreen={isFullscreen}
+            isMuted={false}
+            isLoading={false}
+            index={index}
+            totalEmails={emailData?.totalReplies}
+            threadAttachments={index === 0 ? allThreadAttachments : undefined}
+            dealId={contextData?.deals?.[0]?.hubspotId}
+
+          />
+          {isReplyingToThisMessage && !isLastMessage && (
+            <div className="px-4 py-2" id={`reply-composer-${message.id}`}>
+              <ReplyCompose messageId={message.id} />
+            </div>
+          )}
+        </div>
+      );
+    })}
+  </div>
+</ScrollArea>
+
               
               {/* Sticky Reply Compose at Bottom - Only for last message */}
               {mode && activeReplyId && activeReplyId === emailData.messages[emailData.messages.length - 1]?.id && (
@@ -1088,6 +1153,128 @@ useEffect(() => {
           </>
         )}
       </div>
+      {isSummaryModalOpen && summaryData && (
+  <div
+    className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+  >
+    <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl max-w-xl w-full p-6 relative">
+      <h2 className="text-lg font-semibold mb-4">🧠 Thread Summary</h2>
+
+      <textarea
+        value={summaryData!.summary}
+        onChange={(e) => {
+          setSummaryData((prev) => (prev ? { ...prev, summary: e.target.value } : prev));
+        }}
+        className="w-full h-48 resize-none rounded-md border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-sm text-zinc-800 dark:text-zinc-100 p-3 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        placeholder="Summary will appear here..."
+      />
+
+      <div className="flex justify-between gap-3">
+          {/* ✅ Copy button (bottom-left aligned with close button) */}
+  <TooltipProvider>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(summaryData!.summary);
+            toast.success('Copied to clipboard');
+          }}
+          className="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800"
+          aria-label="Copy to clipboard"
+        >
+          <Copy className="w-5 h-5 text-zinc-600 dark:text-zinc-300" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="top">
+        Copy to clipboard
+      </TooltipContent>
+    </Tooltip>
+  </TooltipProvider>
+
+  {/* ✅ Update Opportunity Button */}
+  <button
+    onClick={async () => {
+      if (!id) {
+        toast.error('No linked opportunity found');
+        return;
+      }
+    
+      const dealId = contextData?.deals?.[0]?.hubspotId;
+    
+      if (!dealId || !/^\d+$/.test(dealId)) {
+        toast.error('Missing valid numeric deal ID');
+        return;
+      }
+    
+      setIsUpdatingOpportunity(true); // ✅ start spinner
+    
+      try {
+        const API_BASE = import.meta.env.VITE_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+    
+        const res = await fetch(`${API_BASE}/api/threads/intelligence`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            threadId: id,
+            messages: [],
+            crmContext: { dealId },
+            contactContext: getContactContext(emailData),
+          }),
+        });
+    
+        if (!res.ok) {
+          toast.error('Failed to generate note');
+          return;
+        }
+    
+        const { fingerprint }: { fingerprint: string } = await res.json();
+    
+        setTimeout(() => {
+          fetch(`${API_BASE}/api/threads/associate-note`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fingerprint, dealId }),
+          });
+        }, 40000);
+    
+        toast.success('Opportunity updated!');
+        setSummaryModalOpen(false);
+      } catch (err) {
+        console.error('❌ Error in Update Opportunity:', err);
+        toast.error('Something went wrong. Try again.');
+      } finally {
+        setIsUpdatingOpportunity(false); // ✅ stop spinner
+      }
+    }}
+    
+    className="flex items-center justify-center gap-2 px-4 py-1.5 text-sm text-white bg-blue-600 rounded hover:bg-blue-700"
+  >
+    {isUpdatingOpportunity ? (
+  <Loader2 className="w-4 h-4 animate-spin" />
+) : (
+  <StickyNote className="w-4 h-4" />
+)}
+    Update Opportunity
+  </button>
+
+
+
+      </div>
+
+      <button
+        className="absolute top-3 right-3 text-gray-500 hover:text-black dark:hover:text-white text-lg"
+        onClick={() => setSummaryModalOpen(false)}
+        aria-label="Close"
+      >
+        ✕
+      </button>
+    </div>
+  </div>
+)}
+
     </div>
   );
+  
 }

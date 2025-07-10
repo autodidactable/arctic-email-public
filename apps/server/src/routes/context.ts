@@ -20,6 +20,7 @@ contextApi.get('/', async (c) => {
   const contactDeals = await db
     .select({
       id: deals.stacksync_record_id_rr1kp8,
+      hubspotId: deals.id,  
       name: deals.dealname,
       stage: deals.dealstage,
       amount: deals.amount,

@@ -575,6 +575,9 @@ importers:
       mimetext:
         specifier: ^3.0.27
         version: 3.0.27
+      openai:
+        specifier: 5.6.0
+        version: 5.6.0(ws@8.18.0)(zod@3.25.42)
       p-retry:
         specifier: 6.2.1
         version: 6.2.1
@@ -685,15 +688,7 @@ importers:
   packages/tsconfig: {}
 
 packages:
-  '@11labs/client@0.1.4':
-    resolution: {integrity: sha512-XxNl4GpNW9NYOD1P5apzZBpcNOP0Zu4goZu8Lud1iTIVkjv3fDp+hyurZoSTUdsik/TIeuxMgbd392M/EQgoKw==}
-    deprecated: This package has moved to @elevenlabs/client
 
-  '@11labs/react@0.1.4':
-    resolution: {integrity: sha512-iJ+cRfoj6WNQ9U48Umvhf4yw+LhmLYtkPXiU85Nj74paPQbSNBDTq6kwi7BTu2DtfgqP65T5BEjWhheV2IxogA==}
-    deprecated: This package has moved to @elevenlabs/react
-    peerDependencies:
-      react: '>=16.8.0'
   '@ai-sdk/google@1.2.18':
     resolution: {integrity: sha512-8B70+i+uB12Ae6Sn6B9Oc6W0W/XorGgc88Nx0pyUrcxFOdytHBaAVhTPqYsO3LLClfjYN8pQ9GMxd5cpGEnUcA==}
     engines: {node: '>=18'}
@@ -5906,6 +5901,18 @@ packages:
   onetime@5.1.2:
     resolution: {integrity: sha512-kbpaSSGJTWdAY5KPVeMOKXSrPtr8C8C7wodJbcsd51jRnmD+GZu8Y0VoU6Dm5Z4vWr0Ig/1NKuWRKf7j5aaYSg==}
     engines: {node: '>=6'}
+
+  openai@5.6.0:
+    resolution: {integrity: sha512-jNH5z+hYAdOMZXyEt0yZ7246s+UZjg2AwFQqkAhZIPPjxNtHHO5mykOefau6FkOqj16aC94MOdJl/rZBcKj/cQ==}
+    hasBin: true
+    peerDependencies:
+      ws: ^8.18.0
+      zod: ^3.23.8
+    peerDependenciesMeta:
+      ws:
+        optional: true
+      zod:
+        optional: true
 
   optionator@0.9.4:
     resolution: {integrity: sha512-6IpQ7mKUxRcZNLIObR0hz7lxsapSSIYNZJwXPGeF0mTVqGKFIXj1DQcMoT22S3ROcLyY/rz0PWaWZ9ayWmad9g==}
@@ -13075,6 +13082,11 @@ snapshots:
   onetime@5.1.2:
     dependencies:
       mimic-fn: 2.1.0
+
+  openai@5.6.0(ws@8.18.0)(zod@3.25.42):
+    optionalDependencies:
+      ws: 8.18.0
+      zod: 3.25.42
 
   optionator@0.9.4:
     dependencies:

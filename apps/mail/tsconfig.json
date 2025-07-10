@@ -4,7 +4,8 @@
     "lib": ["dom", "dom.iterable", "esnext"],
     "types": ["node", "vite/client"],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./*"],
+      "types/*": ["../shared/types/*"] // ✅ Add this line
     },
     "rootDirs": [".", "./.react-router/types"]
   },

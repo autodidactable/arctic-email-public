@@ -15,6 +15,7 @@ import {
   numeric
 } from 'drizzle-orm/pg-core';
 import { defaultUserSettings } from '../lib/schemas';
+import { sql, eq } from 'drizzle-orm';
 
 export const createTable = pgTableCreator((name) => `mail0_${name}`);
 
@@ -193,14 +194,16 @@ export const contacts = pgTable('contacts', {
 });
 
 export const deals = pgTable('deals', {
-  id: text('id').primaryKey(), // ✅ keep this
+  id: text('id').primaryKey(),
   dealname: varchar('dealname', { length: 255 }),
   dealstage: varchar('dealstage', { length: 255 }),
   amount: numeric('amount'),
   closedate: timestamp('closedate'),
   engagements_last_meeting_booked: timestamp('engagements_last_meeting_booked'),
-  stacksync_record_id_rr1kp8: uuid('stacksync_record_id_rr1kp8'), // ❌ NOT a primary key
+  stacksync_record_id_rr1kp8: uuid('stacksync_record_id_rr1kp8'), // primary key
+  description: varchar('description', { length: 10000 }),
 });
+
 export const stages = pgTable('stages', {
   id: text('id').primaryKey(),              // e.g., 'qualifiedtobuy'
   label: text('label'),                     // e.g., 'Qualified to Buy'
@@ -215,4 +218,41 @@ export const associations_contact_deal = pgTable('associations_contact_deal', {
   contact_id: bigint('contact_id', { mode: 'number' }),
   deal_id: text('deal_id'), // ✅ FIXED: now matches deals.id
   stacksync_record_id_hqf40t: uuid('stacksync_record_id_hqf40t').primaryKey(),
+});
+
+export const thread_insights = createTable('thread_insights', {
+  id: uuid('id').defaultRandom().primaryKey(),
+  thread_id: text('thread_id').notNull(),
+  summary: text('summary'),
+  follow_ups: jsonb('follow_ups'),
+  deal_id: text('deal_id'),
+  account_id: text('account_id'),
+  contact_ids: jsonb('contact_ids').$type<string[]>(),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow(),
+  llm_version: text('llm_version'),
+});
+
+
+export const notes = pgTable('notes', {
+  id: bigint('id', { mode: 'number' }).primaryKey().notNull().default(sql`nextval('notes_id_seq')`),
+  note_body: text('note_body'),
+  body_preview: text('body_preview'),
+  html_body_preview: text('html_body_preview'),
+  body_preview_truncated: boolean('body_preview_truncated'),
+  create_date: timestamp('create_date'),
+  last_modified_date: timestamp('last_modified_date'),
+  record_source: text('record_source'),
+  record_creation_source: text('record_creation_source'),
+  record_creation_source_id: text('record_creation_source_id'),
+  user_ids_of_all_owners: text('user_ids_of_all_owners'),
+  record_id: bigint('record_id', { mode: 'number' }),
+});
+
+
+
+export const associations_notes_deal = pgTable('associations_notes_deal', {
+  notes_id: bigint('notes_id', { mode: 'number' }),
+  deal_id: bigint('deal_id', { mode: 'number' }),
+  association_type_id: bigint('association_type_id', { mode: 'number' }),
+  association_label: text('association_label'), // optional but recommended
 });

@@ -9,6 +9,7 @@ import {
   PDF,
   Reply,
   ReplyAll,
+  Sparkles,
   ThreeDots,
   Tag,
   User,
@@ -29,6 +30,7 @@ import {
   Loader2,
   CopyIcon,
   SearchIcon,
+  Copy
 } from 'lucide-react';
 import {
   Dialog,
@@ -45,7 +47,7 @@ import {
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
 import { memo, useEffect, useMemo, useState, useRef, useCallback, useLayoutEffect } from 'react';
-import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '../ui/tooltip';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import type { Sender, ParsedMessage, Attachment } from '@/types';
@@ -68,14 +70,41 @@ import ReplyCompose from './reply-composer';
 import { Separator } from '../ui/separator';
 import { MailIframe } from './mail-iframe';
 import { useTranslations } from 'use-intl';
-import { useParams } from 'react-router';
+import { data, useParams } from 'react-router';
 import { MailLabels } from './mail-list';
 import { FileText } from 'lucide-react';
 import { format, set } from 'date-fns';
 import { Button } from '../ui/button';
 import { useQueryState } from 'nuqs';
 import { Badge } from '../ui/badge';
+import { summarizeThread } from '@/lib/summarize-thread';
+import type { ContactContext, Deal, CrmContext, ContextData } from 'types/llm';
+import { DialogFooter } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
+import { useContextData } from '@/hooks/use-context-data';
+import { toast } from 'sonner';
 
+// ✅ TOP OF COMPONENT (not inside any function)
+
+
+
+function getContactContext(email: any): ContactContext {
+  if (!email?.sender?.email) return {};
+  return {
+    [email.sender.email]: {
+      name: email.sender.name || '',
+      title: email.sender.title || '',
+    },
+  };
+}
+
+function getCrmContext(props: { dealId?: string; accountId?: string; dealStage?: string }): CrmContext {
+  return {
+    dealId: props.dealId,
+    accountId: props.accountId,
+    dealStage: props.dealStage,
+  };
+}
 // HTML escaping function to prevent XSS attacks
 function escapeHtml(text: string): string {
   if (!text) return text;
@@ -312,6 +341,7 @@ type Props = {
   onReplyAll?: () => void;
   onForward?: () => void;
   threadAttachments?: Attachment[];
+  dealId?: string;         // ✅ ADD THIS     // ✅ ADD THIS
 };
 
 const MailDisplayLabels = ({ labels }: { labels: string[] }) => {
@@ -793,7 +823,26 @@ const MoreAboutQuery = ({
   );
 };
 
-const MailDisplay = ({ emailData, index, totalEmails, demo, threadAttachments }: Props) => {
+const MailDisplay = ({
+  emailData,
+  index,
+  totalEmails,
+  demo,
+  threadAttachments,
+  dealId,
+}: Props) => {
+  
+  console.log('dealId', dealId);
+
+  const contextEmail =
+    emailData?.sender?.email ??
+    emailData?.to?.[0]?.email ??
+    emailData?.cc?.[0]?.email ??
+    undefined;
+
+  const { data: contextData } = useContextData(contextEmail) as {
+    data: ContextData | undefined;
+  };
   const [isCollapsed, setIsCollapsed] = useState<boolean>(false);
   //   const [unsubscribed, setUnsubscribed] = useState(false);
   //   const [isUnsubscribing, setIsUnsubscribing] = useState(false);
@@ -817,6 +866,15 @@ const MailDisplay = ({ emailData, index, totalEmails, demo, threadAttachments }:
   const { data: activeConnection } = useActiveConnection();
   const [researchSender, setResearchSender] = useState<Sender | null>(null);
   const [searchQuery, setSearchQuery] = useState<string | null>(null);
+  const [threadId] = useQueryState('threadId');
+  const finalThreadId = threadId ?? emailData.threadId;
+const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+const [summaryData, setSummaryData] = useState<{
+  summary: string;
+  followUps: any[];
+} | null>(null);
+const [isSummarizing, setIsSummarizing] = useState(false);
+const [isUpdating, setIsUpdating] = useState(false);
 
   const isLastEmail = totalEmails && index === totalEmails - 1;
 
@@ -907,6 +965,40 @@ const MailDisplay = ({ emailData, index, totalEmails, demo, threadAttachments }:
     }
   }, [isCollapsed, preventCollapse, openDetailsPopover]);
 
+  //email summarize
+
+
+
+
+const handleSummarize = async () => {
+  if (!finalThreadId) {
+    toast.error('Missing thread ID');
+    return;
+  }
+  setIsSummarizing(true);
+
+
+  const result = await summarizeThread({
+    
+    threadId: finalThreadId,
+
+    messages: [
+      {
+        id: emailData.id,
+        sender: emailData.sender.email,
+        recipients: (emailData.to || []).map((r) => r.email),
+        timestamp: emailData.receivedOn,
+        subject: emailData.subject || '',
+        body: emailData.decodedBody || '',
+      },
+    ],
+  });
+  setSummaryData(result);
+  setSummaryModalOpen(true);
+  setIsSummarizing(false);
+};
+
+  
   // email printing
   const printMail = () => {
     try {
@@ -1331,7 +1423,7 @@ const MailDisplay = ({ emailData, index, totalEmails, demo, threadAttachments }:
         p === allPeople.find((other) => other?.email === p?.email),
     );
   }, [emailData, activeConnection]);
-
+  
   return (
     <div
       className={cn('relative flex-1 overflow-hidden')}
@@ -1597,6 +1689,27 @@ const MailDisplay = ({ emailData, index, totalEmails, demo, threadAttachments }:
                               </button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="bg-white dark:bg-[#313131]">
+                            <DropdownMenuItem
+                            disabled={isSummarizing}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            handleSummarize();
+                          }}
+                          className="flex items-center gap-2"
+                          >
+                            {isSummarizing ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                <span className="text-muted-foreground">Summarizing...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="h-4 w-4 fill-iconLight dark:fill-iconDark" />
+                                <span>Summarize</span>
+                              </>
+                            )}
+                        </DropdownMenuItem> 
                               <DropdownMenuItem
                                 onClick={(e) => {
                                   e.preventDefault();
@@ -1816,8 +1929,103 @@ const MailDisplay = ({ emailData, index, totalEmails, demo, threadAttachments }:
           </div>
         </div>
       </TextSelectionPopover>
+      {summaryModalOpen && summaryData && (
+        
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl max-w-xl w-full p-6 relative">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <StickyNote className="w-5 h-5" />
+          Thread Summary
+        </h2>
+  
+        <Textarea
+          className="w-full text-sm text-zinc-800 dark:text-white bg-zinc-100 dark:bg-zinc-800 border-none focus-visible:ring-0 min-h-[160px] mb-6"
+          value={summaryData.summary}
+          readOnly
+        />
+  
+        <div className="flex justify-end items-center gap-2">
+        <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(summaryData?.summary || '');
+                    toast.success('Copied to clipboard');
+                  }}
+                  className="p-2 rounded-md hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  <CopyIcon className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Copy summary</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+  
+          <Button
+            className="bg-blue-600 text-white hover:bg-blue-700"
+            disabled={isUpdating}
+            onClick={async () => {
+              
+              const hubspotDealId = dealId;
+
+            
+
+              setIsUpdating(true);
+              try {
+                const API_BASE = import.meta.env.VITE_PUBLIC_BACKEND_URL || 'http://localhost:8787';
+                const res = await fetch(`${API_BASE}/api/threads/intelligence`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    threadId: emailData.threadId,
+                    messages: [],
+                    crmContext: { dealId: hubspotDealId },
+                    contactContext: getContactContext(emailData),
+                  }),
+                });
+  
+                const { fingerprint }: { fingerprint: string } = await res.json();
+
+                setTimeout(() => {
+                  fetch(`${API_BASE}/api/threads/associate-note`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fingerprint, dealId: hubspotDealId }),
+                  });
+                }, 40000);
+  
+                toast.success('Opportunity updated!');
+                  setSummaryModalOpen(false);
+                } catch (err) {
+                  console.error('❌ Error updating opportunity:', err);
+                  toast.error('Something went wrong. Try again.');
+                } finally {
+                  setIsUpdating(false);
+                }
+              }}
+          >
+            {isUpdating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Update Opportunity
+          </Button>
+        </div>
+  
+        <button
+          className="absolute top-4 right-4 text-zinc-500 hover:text-black dark:hover:text-white text-lg"
+          onClick={() => setSummaryModalOpen(false)}
+          aria-label="Close"
+        >
+          ✕
+        </button>
+      </div>
     </div>
-  );
-};
+  )}
+    </div>
+ 
+)};
 
 export default memo(MailDisplay);
